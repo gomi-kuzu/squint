@@ -845,8 +845,13 @@ if __name__ == "__main__":
 
     # ── Training loop ──────────────────────────────────────────────────────
 
-    obs, _ = envs.reset(seed=args.seed)
-    eval_envs.reset(seed=args.seed)
+    train_num_envs = args.num_envs if not args.evaluate else 1
+    train_reset_seeds = np.arange(args.seed, args.seed + train_num_envs, dtype=np.int64)
+    eval_seed_base = args.seed + 1_000_000
+    eval_reset_seeds = np.arange(eval_seed_base, eval_seed_base + args.num_eval_envs, dtype=np.int64)
+
+    obs, _ = envs.reset(seed=train_reset_seeds)
+    eval_envs.reset(seed=eval_reset_seeds)
 
     global_step = 0
     pbar = tqdm.tqdm(total=args.total_timesteps, desc="steps")
