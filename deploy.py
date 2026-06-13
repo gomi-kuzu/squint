@@ -272,6 +272,36 @@ def extract_recording_frame(real_obs: dict) -> Optional[np.ndarray]:
     return None
 
 
+def flatten_real_obs(observation: dict, rgb: bool = True, depth: bool = False, state: bool = True) -> dict:
+    """Flatten raw Sim2Real observations into deploy format (rgb/state)."""
+    if "sensor_data" not in observation:
+        return observation
+
+    obs = dict(observation)
+    sensor_data = obs.pop("sensor_data")
+    obs.pop("sensor_param", None)
+
+    rgb_images = []
+    depth_images = []
+    for cam_data in sensor_data.values():
+        if rgb and "rgb" in cam_data:
+            rgb_images.append(cam_data["rgb"])
+        if depth and "depth" in cam_data:
+            depth_images.append(cam_data["depth"])
+
+    ret = {}
+    if state:
+        ret["state"] = common.flatten_state_dict(obs, use_torch=True)
+    if rgb_images and not depth:
+        ret["rgb"] = torch.concat(rgb_images, axis=-1)
+    elif rgb_images and depth_images:
+        ret["rgb"] = torch.concat(rgb_images, axis=-1)
+        ret["depth"] = torch.concat(depth_images, axis=-1)
+    elif depth_images and not rgb:
+        ret["depth"] = torch.concat(depth_images, axis=-1)
+    return ret
+
+
 # ============================================================
 # HELPER CLASSES
 # ============================================================
@@ -393,8 +423,9 @@ def main(args: Args):
         sensor_configs=dict(width=args.image_size, height=args.image_size)
     )
 
-    sim_env = gym.make(args.env_id, **env_kwargs)
-    sim_env = FlattenRGBDObservationWrapper(sim_env, rgb=True, depth=False, state=True)
+    # Sim2RealEnv's internal wrapper-swapping logic can recurse if sim_env itself is a Gym wrapper chain.
+    # Use a fully unwrapped ManiSkill base env here.
+    base_sim_env = gym.make(args.env_id, **env_kwargs).unwrapped
 
     # Async recorder for recording videos
     recorder = None
@@ -405,17 +436,20 @@ def main(args: Args):
             resolution=args.record_resolution,
         )
 
-    preprocessor = create_wrist_camera_preprocessor(sim_env.unwrapped)
+    preprocessor = create_wrist_camera_preprocessor(base_sim_env.unwrapped)
     real_env = Sim2RealEnv(
-        sim_env=sim_env,
+        sim_env=base_sim_env,
         agent=real_agent,
         control_freq=args.control_freq,
         sensor_data_preprocessing_function=preprocessor,
-        real_reset_function=silent_reset
+        real_reset_function=silent_reset,
+        skip_data_checks=True,
     )
+    sim_env = FlattenRGBDObservationWrapper(base_sim_env, rgb=True, depth=False, state=True)
 
     sim_obs, _ = sim_env.reset()
-    real_obs, _ = real_env.reset()
+    real_obs_raw, _ = real_env.reset()
+    real_obs = flatten_real_obs(real_obs_raw, rgb=True, depth=False, state=True)
 
     print("\nObservation shapes:")
     for k in sim_obs.keys():
@@ -501,7 +535,8 @@ def main(args: Args):
                 key = kb.check_key()
                 if key == 's':
                     print("\n[Skipping episode...]")
-                    real_obs, _ = real_env.reset()
+                    real_obs_raw, _ = real_env.reset()
+                    real_obs = flatten_real_obs(real_obs_raw, rgb=True, depth=False, state=True)
                     skip_episode = True
                     break
                 elif key == 'q':
@@ -524,7 +559,8 @@ def main(args: Args):
                 scaled_action = np.clip(action * args.action_scale, -1, 1)
 
                 t0 = time.perf_counter()
-                real_obs, _, terminated, truncated, info = real_env.step(scaled_action)
+                real_obs_raw, _, terminated, truncated, info = real_env.step(scaled_action)
+                real_obs = flatten_real_obs(real_obs_raw, rgb=True, depth=False, state=True)
                 timing_stats["step"].append(time.perf_counter() - t0)
 
                 timing_stats["total"].append(time.perf_counter() - loop_start)
@@ -563,7 +599,8 @@ def main(args: Args):
             episode_count += 1
 
             if not skip_episode:
-                real_obs, _ = real_env.reset()
+                real_obs_raw, _ = real_env.reset()
+                real_obs = flatten_real_obs(real_obs_raw, rgb=True, depth=False, state=True)
 
     # Cleanup
     print("\nReturning robot to rest position...")
