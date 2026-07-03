@@ -100,6 +100,7 @@ def create_wrist_camera_preprocessor(sim_env):
     """Create a preprocessing function for the wrist camera images.
 
     Handles:
+    - Rotating images 90 degrees clockwise
     - Cropping to square aspect ratio
     - Resizing to match simulation camera resolution
 
@@ -126,6 +127,7 @@ def create_wrist_camera_preprocessor(sim_env):
                 continue
 
             img = real_data["rgb"][0].numpy()
+            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
 
             # Crop to square aspect ratio
             h, w = img.shape[:2]
