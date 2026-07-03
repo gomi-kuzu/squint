@@ -52,8 +52,14 @@ CONFIG = {
 
     # Visualization settings
     'window_size': 512,
-    'steps_per_task': 30,
+    'steps_per_task': 90,
     'reset_interval': 10,
+
+    # Video output settings
+    'save_video': False,
+    'output_dir': 'outputs/visualization_videos',
+    'video_fps': 30,
+    'show_display': True,  # Set to False for headless environments
 }
 
 
@@ -103,6 +109,15 @@ def visualize_tasks(config: dict = CONFIG):
     window_size = config['window_size']
     steps_per_task = config['steps_per_task']
     reset_interval = config['reset_interval']
+    save_video = config.get('save_video', False)
+    output_dir = config.get('output_dir', 'outputs/visualization_videos')
+    video_fps = config.get('video_fps', 30)
+    show_display = config.get('show_display', False)
+
+    # Create output directory if saving videos
+    if save_video:
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"Videos will be saved to: {output_dir}")
 
     for task in tasks:
         print(f"Instantiating: {task}")
@@ -112,6 +127,12 @@ def visualize_tasks(config: dict = CONFIG):
         action_shape = env.action_space.shape
         num_envs = config['num_envs']
         video_nrows = int(np.sqrt(num_envs))
+
+        # Initialize video writer if saving
+        video_writer = None
+        if save_video:
+            video_path = os.path.join(output_dir, f"{task}.mp4")
+            print(f"Saving video to: {video_path}")
 
         print(f"Running: {task}")
 
@@ -156,18 +177,42 @@ def visualize_tasks(config: dict = CONFIG):
                 rgb = cv2.resize(rgb, dsize=(window_size, window_size))
 
             # Display
-            rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            rgb_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+
+            # Initialize video writer on first frame
+            if save_video and video_writer is None:
+                video_height, video_width = rgb_bgr.shape[:2]
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                video_writer = cv2.VideoWriter(
+                    os.path.join(output_dir, f"{task}.mp4"),
+                    fourcc,
+                    video_fps,
+                    (video_width, video_height)
+                )
+
+            # Write frame to video
+            if save_video and video_writer is not None:
+                video_writer.write(rgb_bgr)
 
             print(f"Step: {step}/{steps_per_task}, done={done}", end="\r")
-            cv2.imshow("Interleaved: Obs | Render per env", rgb)
-            cv2.waitKey(30)
+            
+            # Display only if requested (requires display server)
+            if show_display:
+                cv2.imshow("Interleaved: Obs | Render per env", rgb_bgr)
+                cv2.waitKey(30)
 
             # Reset on interval or done
             if (step % reset_interval == 0) or done:
                 env.reset()
 
+        # Release video writer
+        if video_writer is not None:
+            video_writer.release()
+            print(f"\nVideo saved: {os.path.join(output_dir, f'{task}.mp4')}")
+
         env.close()
-        cv2.destroyAllWindows()
+        if show_display:
+            cv2.destroyAllWindows()
         print(f"Finished: {task}                    ")
 
 
