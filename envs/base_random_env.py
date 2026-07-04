@@ -494,9 +494,14 @@ class WristCameraEnv(BaseRandomEnv):
     """
 
     # Base pose relative to gripper_link
-    WRIST_CAMERA_BASE_POS = (-0.0049, 0.0498, -0.0591)
-    WRIST_CAMERA_BASE_ROT_RAD = (np.deg2rad(-90), np.deg2rad(91), np.deg2rad(-35.31))  # radians (roll, pitch, yaw)
-    WRIST_CAMERA_FOV = np.deg2rad(71)  # 71 degrees
+    # WRIST_CAMERA_BASE_POS = (-0.0049, 0.0498, -0.0591)
+    # WRIST_CAMERA_BASE_ROT_RAD = (np.deg2rad(-90), np.deg2rad(91), np.deg2rad(-35.31))  # radians (roll, pitch, yaw)
+    # WRIST_CAMERA_FOV = np.deg2rad(71)  # 71 degrees
+
+    # my SO-101 '26.7.4
+    WRIST_CAMERA_BASE_POS = (0.0000, 0.0410, -0.0580)
+    WRIST_CAMERA_BASE_ROT_RAD = (np.deg2rad(-90.0), np.deg2rad(91.0), np.deg2rad(-26.0))  # radians (roll, pitch, yaw)
+    WRIST_CAMERA_FOV = np.deg2rad(73.0)  #degrees
 
     def __init__(
         self,

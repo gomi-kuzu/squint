@@ -36,10 +36,11 @@ import envs
 
 
 class LiveCameraTuner:
-    def __init__(self, env_id: str, sim_width: int = 480, sim_height: int = 480):
+    def __init__(self, env_id: str, sim_width: int = 480, sim_height: int = 480, image_rotation: int = 90):
         self.env_id = env_id
         self.sim_width = sim_width
         self.sim_height = sim_height
+        self.image_rotation = image_rotation
 
         # Camera pose defaults (overwritten by sim extraction)
         self.cam_x = self.cam_y = self.cam_z = 0.0
@@ -181,6 +182,15 @@ class LiveCameraTuner:
             rgb = rgb.cpu().numpy()
         if rgb.ndim == 4:
             rgb = rgb[0]
+
+        # Apply rotation if specified
+        if self.image_rotation == 90:
+            rgb = cv2.rotate(rgb, cv2.ROTATE_90_CLOCKWISE)
+        elif self.image_rotation == -90:
+            rgb = cv2.rotate(rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        elif self.image_rotation == 180 or self.image_rotation == -180:
+            rgb = cv2.rotate(rgb, cv2.ROTATE_180)
+        # image_rotation == 0: no rotation
 
         # Center-crop to square
         h, w = rgb.shape[:2]
@@ -343,5 +353,6 @@ if __name__ == "__main__":
     parser.add_argument("--env-id", default="SO101ReachCube-v1", help="Sim environment ID")
     parser.add_argument("--sim-width", type=int, default=480)
     parser.add_argument("--sim-height", type=int, default=480)
+    parser.add_argument("--image-rotation", type=int, default=90, help="Rotation angle for real camera images (90=clockwise, -90=counterclockwise, 0=no rotation)")
     args = parser.parse_args()
-    LiveCameraTuner(args.env_id, args.sim_width, args.sim_height).run()
+    LiveCameraTuner(args.env_id, args.sim_width, args.sim_height, args.image_rotation).run()
