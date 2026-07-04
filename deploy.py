@@ -82,6 +82,8 @@ class Args:
     """Random seed for reproducibility."""
     image_size: int = 128
     """HxW of input image to agent"""
+    image_rotation: int = 90
+    """Rotation angle for camera images. 90=clockwise, -90=counterclockwise, 0=no rotation."""
 
     # Wandb checkpoint download settings (only used when checkpoint='wandb')
     wandb_entity: Optional[str] = None  # CHANGE THIS: your wandb username/entity
@@ -96,16 +98,17 @@ class Args:
 # ============================================================
 
 
-def create_wrist_camera_preprocessor(sim_env):
+def create_wrist_camera_preprocessor(sim_env, rotation_angle: int = 90):
     """Create a preprocessing function for the wrist camera images.
 
     Handles:
-    - Rotating images 90 degrees clockwise
+    - Rotating images (optional, based on rotation_angle)
     - Cropping to square aspect ratio
     - Resizing to match simulation camera resolution
 
     Args:
         sim_env: The base simulation environment (unwrapped)
+        rotation_angle: Rotation angle (90=clockwise, -90=counterclockwise, 0=no rotation)
 
     Returns:
         Preprocessing function for sensor data
@@ -127,7 +130,15 @@ def create_wrist_camera_preprocessor(sim_env):
                 continue
 
             img = real_data["rgb"][0].numpy()
-            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            
+            # Apply rotation if specified
+            if rotation_angle == 90:
+                img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            elif rotation_angle == -90:
+                img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            elif rotation_angle == 180 or rotation_angle == -180:
+                img = cv2.rotate(img, cv2.ROTATE_180)
+            # rotation_angle == 0: no rotation
 
             # Crop to square aspect ratio
             h, w = img.shape[:2]
@@ -438,7 +449,7 @@ def main(args: Args):
             resolution=args.record_resolution,
         )
 
-    preprocessor = create_wrist_camera_preprocessor(base_sim_env.unwrapped)
+    preprocessor = create_wrist_camera_preprocessor(base_sim_env.unwrapped, rotation_angle=args.image_rotation)
     real_env = Sim2RealEnv(
         sim_env=base_sim_env,
         agent=real_agent,
